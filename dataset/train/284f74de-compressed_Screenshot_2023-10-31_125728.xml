@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotation>
+<folder>images</folder>
+<filename>284f74de-compressed_Screenshot_2023-10-31_125728.jpg</filename>
+<source>
+<database>MyDatabase</database>
+<annotation>COCO2017</annotation>
+<image>flickr</image>
+<flickrid>NULL</flickrid>
+<annotator>1</annotator>
+</source>
+<owner>
+<flickrid>NULL</flickrid>
+<name>Label Studio</name>
+</owner>
+<size>
+<width>619</width>
+<height>727</height>
+<depth>3</depth>
+</size>
+<segmented>0</segmented>
+<object>
+<name>student</name>
+<pose>Unspecified</pose>
+<truncated>0</truncated>
+<difficult>0</difficult>
+<bndbox>
+<xmin>142</xmin>
+<ymin>41</ymin>
+<xmax>489</xmax>
+<ymax>457</ymax>
+</bndbox>
+</object>
+</annotation>

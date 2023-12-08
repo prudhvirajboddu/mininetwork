@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotation>
+<folder>images</folder>
+<filename>1a5d1278-Screenshot_2023-11-07_at_11-59-03_University_of_New_Haven_Public_Safet_BzbSQ7c.png</filename>
+<source>
+<database>MyDatabase</database>
+<annotation>COCO2017</annotation>
+<image>flickr</image>
+<flickrid>NULL</flickrid>
+<annotator>1</annotator>
+</source>
+<owner>
+<flickrid>NULL</flickrid>
+<name>Label Studio</name>
+</owner>
+<size>
+<width>877</width>
+<height>658</height>
+<depth>4</depth>
+</size>
+<segmented>0</segmented>
+<object>
+<name>Security</name>
+<pose>Unspecified</pose>
+<truncated>0</truncated>
+<difficult>0</difficult>
+<bndbox>
+<xmin>295</xmin>
+<ymin>250</ymin>
+<xmax>566</xmax>
+<ymax>556</ymax>
+</bndbox>
+</object>
+</annotation>

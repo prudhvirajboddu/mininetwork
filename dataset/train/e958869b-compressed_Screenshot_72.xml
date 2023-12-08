@@ -1,0 +1,25 @@
+Based on breakthroughs in machine translation and computer vision, image captioning has advanced significantly in recent years. Initial research concentrated on fixed language model caption generation using templates [1]. Data-driven techniques were made possible by the introduction of big datasets such as Flickr8K [2] and Microsoft COCO [3].
+
+Pretrained CNNs and LSTMs were used in [4] to propose a CNN-RNN encoder-decoder framework that eventually became the standard method. Enhancement of picture feature extraction and caption meaning was made possible by attentive and semantic attention processes [5]. Review [6] goes into great detail about the development of alignment-based captioning models. These RNN designs have limitations when it comes to long-range context memory, though.
+
+Due to their parallelization ability and ability to model global context through self-attention, transformers begin to replace recurrent networks in language tasks [7, 8]. Transformers for image-text tasks have also been investigated more recently. Work [9] included captions and object tag predictions. In order to model inter-object dependencies, [10] used an object relation module. Our methodology is limited to using transformers to improve CNN encoders for producing accurate and meaningful image captions.
+
+
+We expand upon previous works by utilizing the most recent developments in models for self-supervised image identification, such as ResNets [11]. We achieve state-of-the-art on this challenge by combining transformer attention and ResNet features in our twin tower design idea. Compared to previous methods, we show enhanced feature extraction and connection modeling skills that result in captions that are more akin to human speech. The created code also functions as an expandable foundation for investigating associated image-text production problems, such as visual narration [12].
+
+References:
+[1] Farhadi et al. 2010
+[2] Hodosh et al. 2013
+[3] Chen et al. 2015
+[4] Vinyals et al. 2015
+[5] Xu et al. 2015
+[6] Hossain et al. 2019
+[7] Vaswani et al. 2017
+[8] Devlin et al. 2019
+[9] Li et al. 2019
+[10] Herdade et al. 2019
+[11] He et al. 2016
+[12] Huang et al. 2016
+Reference:
+[13] Young et al. 2014. From image descriptions to visual denotations: New similarity metrics for semantic inference over event descriptions. Transactions of the Association for Computational Linguistics, 2:67–78
+
