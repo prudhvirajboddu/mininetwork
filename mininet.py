@@ -1,16 +1,27 @@
+import os
+import cv2
+import glob
+import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import random
+from torch.utils.data import Dataset, DataLoader
+from xml.etree import ElementTree as et
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from model import CustomObjectDetectionModel
 
 
+
 img_size = 512
+
+batch_size = 8
+
 num_classes = 5
-classes = 
+
+classes = ['student','Security', 'Staff', 'Facility Worker','Food Service worker']
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -85,16 +96,16 @@ class FaceDataset(Dataset):
 
         # prepare the final `target` dictionary
         target = {}
-        target["boxes"] = boxes
-        target["labels"] = labels
+        target["bounding_box"] = boxes
+        target["class_label"] = labels
 
         # apply the image transforms
         if self.transforms:
             sample = self.transforms(image=image_resized,
-                                     bboxes=target['boxes'],
+                                     bboxes=target['bounding_box'],
                                      labels=labels)
             image_resized = sample['image']
-            target['boxes'] = torch.Tensor(sample['bboxes'])
+            target['bounding_box'] = torch.Tensor(sample['bboxes'])
 
         return image_resized, target
 
@@ -120,18 +131,17 @@ valid_transforms = A.Compose([ToTensorV2(p=1.0)], bbox_params={'format': 'pascal
 def collate_fn(batch):
     return tuple(zip(*batch))
 
-train_dir = 'dataset\\train'
-valid_dir = 'dataset\\valid'
+train_dir = 'dataset/train'
+valid_dir = 'dataset/valid'
 
 
-train_dataset = FaceDataset(
-    train_dir,img_size,img_size,classes,transforms=train_transforms))
-valid_dataset = FaceDataset(
-    VALID_DIR, RESIZE_TO, RESIZE_TO, CLASSES, get_valid_transform())
+train_dataset = FaceDataset(train_dir,img_size,img_size,classes,transforms=train_transforms)
+
+valid_dataset = FaceDataset(valid_dir,img_size,img_size,classes,transforms=valid_transforms)
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=BATCH_SIZE,
+    batch_size=1,
     shuffle=True,
     num_workers=0,
     collate_fn=collate_fn
@@ -139,9 +149,110 @@ train_loader = DataLoader(
 
 valid_loader = DataLoader(
     valid_dataset,
-    batch_size=BATCH_SIZE,
+    batch_size=batch_size,
     shuffle=False,
     num_workers=0,
     collate_fn=collate_fn
 )
-    
+
+class TripletLoss(nn.Module):
+    def __init__(self, margin=1.0):
+        super(TripletLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, anchor, positive, negative):
+        distance_positive = torch.norm(anchor - positive, dim=1)
+        distance_negative = torch.norm(anchor - negative, dim=1)
+        losses = torch.relu(distance_positive - distance_negative + self.margin)
+        return torch.mean(losses)
+
+model = CustomObjectDetectionModel(num_classes=num_classes)
+
+model.to(device)
+
+params = [p for p in model.parameters() if p.requires_grad]
+
+optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+
+triplet_criterion = TripletLoss(margin=1.0)
+
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+
+num_epochs = 1
+
+train_losses = []
+valid_losses = []
+
+for epoch in range(num_epochs):
+    # Training
+    model.train()
+    for data in train_loader:
+
+        images, targets = data
+
+        print(type(images))
+
+        images = list(image.to(device) for image in images)
+
+        targets = {key: value.to(device) for key, value in targets.items()}
+  
+        prin
+
+        outs = model(images)
+
+        exit()
+
+
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        # Zero the gradients
+        optimizer.zero_grad()
+
+        # Forward pass
+        predictions = model(images)
+
+        # Split predictions for bounding box regression and classification
+        pred_bbox = predictions["bounding_box"]
+        pred_cls = predictions["class_label"]
+
+        # Calculate triplet loss for bounding box regression
+        loss_bbox = triplet_criterion(pred_bbox, pred_bbox, targets["bounding_box"])
+
+        # Calculate triplet loss for classification
+        loss_cls = triplet_criterion(pred_cls, pred_cls, targets["class_label"])
+
+        # Combine losses
+        total_loss = loss_bbox + loss_cls
+
+        # Backward pass and optimization
+        total_loss.backward()
+        optimizer.step()
+
+    # Validation
+    model.eval()
+    with torch.no_grad():
+        total_val_loss = 0.0
+        num_batches = 0
+
+        for val_batch in val_loader:
+            val_images, val_targets = val_batch["image"], val_batch["target"]
+
+            # Forward pass for validation
+            val_predictions = model(val_images)
+
+            # Split predictions for bounding box regression and classification
+            val_pred_bbox = val_predictions["bounding_box"]
+            val_pred_cls = val_predictions["class_label"]
+
+            # Calculate triplet loss for bounding box regression
+            val_loss_bbox = triplet_criterion(val_pred_bbox, val_pred_bbox, val_targets["bounding_box"])
+
+            # Calculate triplet loss for classification
+            val_loss_cls = triplet_criterion(val_pred_cls, val_pred_cls, val_targets["class_label"])
+
+            # Combine losses
+            total_val_loss += (val_loss_bbox + val_loss_cls).item()
+            num_batches += 1
+
+        average_val_loss = total_val_loss / num_batches
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {total_loss.item()}, Val Loss: {average_val_loss}")
