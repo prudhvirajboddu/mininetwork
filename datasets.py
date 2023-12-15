@@ -12,11 +12,6 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import matplotlib.pyplot as plt
 from torchvision.ops import nms, box_iou
-import ray
-from ray import tune
-from ray.train import report
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
 
 img_size = 512
 
@@ -283,27 +278,14 @@ class FaceRecogNet(nn.Module):
         predicted_classes = predicted_classes.reshape(x.size(0), NUM_CLASSES)
 
         return predicted_boxes, predicted_classes
-    
-
-# model = FaceRecogNet().to(device)
-
-# def init_weights(m):
-#     if isinstance(m, nn.Conv2d):
-#         torch.nn.init.kaiming_normal_(m.weight)
-
-# model.apply(init_weights)
-
-# optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0005)
-
-# lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
 
 def Calculate_loss(anchor,positive,negative):
 
     # Calculate the loss for the bounding boxes
-    loss_bbox = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=0.001, reduction='mean')
+    loss_bbox = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=1.0, reduction='mean')
 
-    loss_class = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=0.01, reduction='mean')
+    loss_class = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), swap = True, margin=0.01, reduction='mean')
 
     loss_bbox = loss_bbox(anchor[0], positive[0], negative[0])
 
@@ -312,7 +294,6 @@ def Calculate_loss(anchor,positive,negative):
     total_loss = loss_bbox + loss_class
 
     return total_loss
-
 
 
 def train_tune(config, out_dir='outputs'):
@@ -325,7 +306,7 @@ def train_tune(config, out_dir='outputs'):
 
     model.apply(init_weights)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum = config['momentum'], weight_decay = config['weight_decay'])
+    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum = config['momentum'], weight_decay = 0.05)
 
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
@@ -343,9 +324,6 @@ def train_tune(config, out_dir='outputs'):
             optimizer.zero_grad()
 
             anchor = model(images)
-
-            print(anchor[0].shape)
-            print(anchor[1].shape)
 
             positive = model(images)
 
@@ -381,52 +359,20 @@ def train_tune(config, out_dir='outputs'):
                 # Calculate loss
                 loss = Calculate_loss(anchor_valid,positive_valid,negative_valid)
 
-                # print(loss.item())
-
                 valid_losses.append(loss.item())
 
 
-        val_loss = loss.item()
         print(f"Epoch: {epoch+1}/{num_epochs}, Validation Loss: {loss.item():.4f}")
 
         lr_scheduler.step()
 
-        report(mean_loss=val_loss)
-    
-        plt.plot(train_losses, label='Training loss')
-        plt.plot(valid_losses, label='Validation loss')
-        plt.legend(frameon=False)
-        plt.savefig(f"{out_dir}", f"{out_dir}_loss_plot.png")
-        torch.save(model.state_dict(), f"{out_dir}", f"{model}_{num_epochs}.pth")
 
+    plt.plot(train_losses, label='Training loss')
+    plt.plot(valid_losses, label='Validation loss')
+    plt.legend(frameon=False)
+    plt.savefig(f"{out_dir}", f"{out_dir}_loss_plot_{num_epochs}.png")
+    torch.save(model.state_dict(), f"{out_dir}", f"{model}_{num_epochs}.pth")
 
-def main():
-
-    ray.init(num_gpus=1)
-
-    config = {
-    "lr": tune.loguniform(1e-4, 1e-7, 2e-9),
-    "momentum": tune.uniform(0.2, 0.7),
-    "weight_decay": tune.uniform(0.0005, 5e-5),
-    "epochs": tune.choice([10, 20, 30])
-}
-
-    analysis = tune.run(
-    train_tune,
-    config=config,
-    resources_per_trial={"cpu": 2, "gpu": 1},
-    local_dir="results",
-    num_samples=10,
-    progress_reporter=CLIReporter(max_progress_rows=10),
-    name="tune_1"
-)
-    
-    best_config = analysis.get_best_config(metric="val_loss", mode="min")
-    ray.shutdown()
-
-
-if __name__ == "__main__":
-    main()
 
 
 
