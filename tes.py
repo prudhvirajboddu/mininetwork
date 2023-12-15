@@ -1,14 +1,6 @@
 import torch
 from torchvision.ops import box_iou
 
-bounding_box = torch.randn(8,5,4)
-
-labels = torch.randn(8,5)
-
-target_box = torch.randn(8,5,4)
-target_labels = torch.randn(8,5)
-
-
 def calculate_iou(box1, box2):
     # box1 and box2 are tensors representing bounding boxes in [x1, y1, x2, y2] format
     intersection = box_iou(box1.unsqueeze(0), box2.unsqueeze(0))
@@ -45,12 +37,14 @@ def calculate_precision_recall(targets, predictions, iou_threshold=0.5):
 
     return precision, recall
 
-# Example usage:
+# Example usage for batch of output values:
+batch_size = 2
 
-targets = {'boxes': target_box , 'labels': target_labels}
+targets_batch = {'boxes': torch.randn(8,5,4),
+                 'labels': torch.randn(8,5)}
 
-print(targets['boxes'][0])
+predictions_batch = {'boxes': torch.randn(8,5,4),
+                     'labels': torch.randn(8,5)}
 
-predictions = {'boxes': bounding_box, 'labels': labels}
-
-precision, recall = calculate_precision_recall(targets, predictions)
+precision, recall = calculate_precision_recall(targets_batch, predictions_batch)
+print(f'Precision: {precision}, Recall: {recall}')
