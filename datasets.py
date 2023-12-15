@@ -166,7 +166,7 @@ valid_dataset = FaceDataset(valid_dir,img_size,img_size,classes,transforms=valid
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=8,
+    batch_size=batch_size,
     shuffle=True,
     num_workers=0,
     collate_fn=collate_fn
@@ -179,6 +179,18 @@ valid_loader = DataLoader(
     num_workers=0,
     collate_fn=collate_fn
 )
+
+for images, bounding_boxes, class_labels in train_loader:
+    print(images[0].shape)
+    print(bounding_boxes[0].shape)
+    print(class_labels[0].shape)
+    break
+
+for images, bounding_boxes, class_labels in valid_loader:
+    print(images[0].shape)
+    print(bounding_boxes[0].shape)
+    print(class_labels[0].shape)
+    break
 
 class ResNet(nn.Module):
     def __init__(self):
@@ -273,67 +285,19 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0005)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
 
-def triplet_loss(predicted_boxes, predicted_classes, bounding_boxes, class_labels, alpha=0.2, num_negative_samples=5):
+def Calculate_loss(anchor,positive,negative):
     # Calculate smooth L1 loss for bounding boxes
-    loss_bbox = F.smooth_l1_loss(predicted_boxes, bounding_boxes)
+    loss_bbox = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=1.0)
 
-    # Apply softmax activation to predicted classes
-    predicted_classes = F.softmax(predicted_classes, dim=1)
+    loss_class = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=1.0)
 
-    # Convert ground truth labels to torch.long
-    class_labels = class_labels.long()
+    loss_bbox = loss_bbox(anchor[0], positive[0], negative[0])
 
-    # Calculate triplet loss
-    # Get indices for each class
-    class_indices = [class_labels == i for i in range(predicted_classes.size(1))]
+    loss_class = loss_class(anchor[1], positive[1], negative[1])
 
-    # Initialize triplet loss
-    triplet_loss = 0
-
-    for i in range(predicted_classes.size(1)):
-        # Skip classes without positive samples
-        if torch.sum(class_indices[i]) == 0:
-            continue
-
-        # Get positive indices for the current class
-        positive_indices = class_indices[i].nonzero()[:, 0]
-
-        # Get negative indices for the current class
-        negative_indices = torch.cat([class_indices[j].nonzero()[:, 0] for j in range(predicted_classes.size(1)) if j != i])
-
-        # Randomly sample num_negative_samples indices from the negative indices
-        negative_indices = torch.randperm(negative_indices.size(0))[:num_negative_samples]
-
-        # Select positive and negative samples
-        positive_samples = predicted_boxes[positive_indices]
-        negative_samples = predicted_boxes[negative_indices]
-
-        # Check if positive and negative samples have the same size along dimension 0
-        if positive_samples.size(0) != negative_samples.size(0):
-            continue
-
-        # Calculate pairwise distances
-        pairwise_distances = torch.cdist(positive_samples, negative_samples, p=2)
-
-        # Calculate triplet loss for the current class
-        triplet_loss += F.relu(pairwise_distances - alpha).mean()
-
-    # Average over classes
-        
-    print(class_indices)
-
-    print(type(class_indices))
-    print(torch.sum(class_indices).float())
-
-    # exit()
-    triplet_loss /= torch.sum(class_indices).float()
-
-    # Combine all losses
-    total_loss = loss_bbox + triplet_loss
+    total_loss = loss_bbox + loss_class
 
     return total_loss
-
-
 
 
 num_epochs = 1
@@ -351,10 +315,20 @@ for epoch in range(num_epochs):
 
         optimizer.zero_grad()
 
-        predicted_boxes, predicted_classes = model(images)
+        anchor = model(images)
+
+        # print(anchor)
+
+        # print(anchor[0].shape)
+
+        # print(anchor[1].shape)
+
+        positive = model(images)
+
+        negative = model(images)
 
         # Calculate loss
-        loss = triplet_loss(predicted_boxes, predicted_classes, bounding_boxes, class_labels)
+        loss = Calculate_loss(anchor,positive,negative)
 
         # Backpropagation
         loss.backward()
@@ -374,10 +348,14 @@ for epoch in range(num_epochs):
             bounding_boxes = torch.stack(bounding_boxes).to(device)
             class_labels = torch.stack(class_labels).to(device)
 
-            predicted_boxes, predicted_classes = model(images)
+            anchor_valid = model(images)
+            positive_valid = model(images)
+            negative_valid = model(images)
 
             # Calculate loss
-            loss = triplet_loss(predicted_boxes, predicted_classes, bounding_boxes, class_labels)
+            loss = Calculate_loss(anchor_valid,positive_valid,negative_valid)
+
+            print(loss.item())
 
             valid_losses.append(loss.item())
 
