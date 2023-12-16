@@ -181,17 +181,17 @@ valid_loader = DataLoader(
     collate_fn=collate_fn
 )
 
-for images, bounding_boxes, class_labels in train_loader:
-    print(images[0].shape)
-    print(bounding_boxes[0].shape)
-    print(class_labels[0].shape)
-    break
+# for images, bounding_boxes, class_labels in train_loader:
+#     print(images[0].shape)
+#     print(bounding_boxes[0].shape)
+#     print(class_labels[0].shape)
+#     break
 
-for images, bounding_boxes, class_labels in valid_loader:
-    print(images[0].shape)
-    print(bounding_boxes[0].shape)
-    print(class_labels[0].shape)
-    break
+# for images, bounding_boxes, class_labels in valid_loader:
+#     print(images[0].shape)
+#     print(bounding_boxes[0].shape)
+#     print(class_labels[0].shape)
+#     break
 
 class ResNet18(nn.Module):
     def __init__(self):
@@ -283,13 +283,9 @@ class FaceRecogNet(nn.Module):
 def Calculate_loss(anchor,positive,negative):
 
     # Calculate the loss for the bounding boxes
-    loss_bbox = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), margin=1.0, reduction='mean')
+    loss_bbox = F.triplet_margin_loss(anchor[0], positive[0], negative[0], margin = 0.5, p = 4, reduction='mean')
 
-    loss_class = nn.TripletMarginWithDistanceLoss(distance_function=nn.PairwiseDistance(), swap = True, margin=0.01, reduction='mean')
-
-    loss_bbox = loss_bbox(anchor[0], positive[0], negative[0])
-
-    loss_class = loss_class(anchor[1], positive[1], negative[1])
+    loss_class = F.triplet_margin_with_distance_loss(anchor[0], positive[0], negative[0],distance_function=nn.PairwiseDistance(),margin= 0.1 ,reduction='mean')
 
     total_loss = loss_bbox + loss_class
 
@@ -303,12 +299,16 @@ def train_tune(config, out_dir='outputs'):
     def init_weights(m):
         if isinstance(m, nn.Conv2d):
             torch.nn.init.kaiming_normal_(m.weight)
+            torch.nn.init.zeros_(m.bias)
+        if isinstance(m, nn.Linear):
+            torch.nn.init.kaiming_normal_(m.weight)
+            torch.nn.init.zeros_(m.bias)
 
     model.apply(init_weights)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum = config['momentum'], weight_decay = 0.05)
+    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum = config['momentum'], weight_decay = 0.0005)
 
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1,last_epoch=-1)
 
     train_losses = []
     valid_losses = []
@@ -370,9 +370,20 @@ def train_tune(config, out_dir='outputs'):
     plt.plot(train_losses, label='Training loss')
     plt.plot(valid_losses, label='Validation loss')
     plt.legend(frameon=False)
-    plt.savefig(f"{out_dir}", f"{out_dir}_loss_plot_{num_epochs}.png")
-    torch.save(model.state_dict(), f"{out_dir}", f"{model}_{num_epochs}.pth")
+    plt.savefig( f"{out_dir}/_loss_plot_{num_epochs}.png")
+    torch.save(model.state_dict(), f"{out_dir}/_{num_epochs}.pth")
 
 
+hyperparameter_space = {
+    "lr": [1e-7, 2e-9],
+    "momentum": [0.7, 0.2],
+    "epochs": [10, 15, 20]
+}
 
-
+for lr in hyperparameter_space["lr"]:
+    for momentum in hyperparameter_space["momentum"]:
+        for epochs in hyperparameter_space["epochs"]:
+            config = {"lr": lr, "momentum": momentum, "epochs": epochs}
+            print("Training with config: ", config)
+            train_tune(config, out_dir='outputs')
+            torch.cuda.empty_cache()
